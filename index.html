@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Search Sankey · Annette Fleishman</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&family=DM+Mono:wght@500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    color: #e0e4f8;
+  }
+  h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .subtitle { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #4a5080; margin-bottom: 6px; }
+  .congrats { font-size: 13px; color: #f0c040; margin-bottom: 28px; font-weight: 600; }
+  svg { overflow: visible; }
+  #tooltip {
+    position: fixed;
+    background: #1a1f35;
+    border: 1px solid #2a3060;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #c8cef0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 280px;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  #tooltip.visible { opacity: 1; }
+  #tooltip .tip-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  #tooltip .tip-count { font-family: 'DM Mono', monospace; font-size: 12px; color: #7a82b0; margin-bottom: 8px; }
+  #tooltip .tip-companies { display: flex; flex-wrap: wrap; gap: 4px; }
+  #tooltip .chip { background: #252b4a; border-radius: 4px; padding: 2px 7px; font-size: 11px; color: #a0a8d0; }
+  .hint { margin-top: 20px; font-size: 12px; color: #4a5080; text-align: center; }
+  .download-btn {
+    margin-top: 16px; background: #1e2540; color: #7a82c0;
+    border: 1px solid #2a3060; border-radius: 8px;
+    padding: 9px 20px; font-size: 12px;
+    font-family: 'DM Sans', sans-serif; font-weight: 600;
+    cursor: pointer; transition: background 0.15s, color 0.15s; letter-spacing: 0.03em;
+  }
+  .download-btn:hover { background: #252b4a; color: #c0c8f0; }
+</style>
+</head>
+<body>
+
+<p class="subtitle">Job Search · Jul 2025 – Mar 2026</p>
+<h1>50 Companies · How Far Did Each Channel Go?</h1>
+<p class="congrats">🎉 Offer accepted at Scribe!</p>
+
+<svg id="sankey" width="780" height="560"></svg>
+<div id="tooltip"></div>
+<p class="hint">Hover or click any band or node to see companies · click again to dismiss</p>
+<button class="download-btn" onclick="downloadSVG()">⬇ Download as SVG</button>
+
+<script>
+const SVG_W = 780, SVG_H = 560, NODE_W = 22, PAD = 9;
+const COL_X = { 0: 195, 1: SVG_W - 220 };
+const TOTAL = 50;
+
+const NODES = [
+  // Channels (col 0)
+  { id:"referred",  label:"Referred",          value:27, col:0, color:"#4F8EF7" },
+  { id:"outreach",  label:"They reached out",  value:13, col:0, color:"#9B59B6" },
+  { id:"cold",      label:"Cold applied",       value:10, col:0, color:"#E67E22" },
+  // Outcomes (col 1)
+  { id:"immediate", label:"Immediate rejection",value:21, col:1, color:"#E74C3C" },
+  { id:"one",       label:"1 round only",       value:8,  col:1, color:"#F39C12" },
+  { id:"multi",     label:"Multiple rounds",    value:11, col:1, color:"#27AE60" },
+  { id:"final",     label:"Final round",        value:5,  col:1, color:"#1ABC9C" },
+  { id:"aborted",   label:"I withdrew",         value:4,  col:1, color:"#7F8C8D" },
+  { id:"offer",     label:"Offer accepted 🎉",  value:1,  col:1, color:"#F0C040" },
+];
+
+const FLOWS = [
+  // Referred
+  { from:"referred", to:"immediate", value:10, companies:["Descript","Figma","Google","Netflix","Chime","Braze","Anthropic","Scribd","Vercel","Atlassian"] },
+  { from:"referred", to:"one",       value:5,  companies:["Postman","Ramp","Linear","Glean","Render"] },
+  { from:"referred", to:"multi",     value:8,  companies:["Retool","DataHub","Instacart","Sierra","Gamma","Juicebox","Asana","Mercury"] },
+  { from:"referred", to:"final",     value:2,  companies:["DoorDash","Faire"] },
+  { from:"referred", to:"aborted",   value:2,  companies:["EvenUp","Gravity Climate"] },
+  // Outreach
+  { from:"outreach", to:"immediate", value:2,  companies:["Rillet","Sigma Computing"] },
+  { from:"outreach", to:"one",       value:3,  companies:["Rippling","Headway","Runway ML"] },
+  { from:"outreach", to:"multi",     value:3,  companies:["Meta","DOSS","Paraform"] },
+  { from:"outreach", to:"final",     value:3,  companies:["Anrok","Decagon","Hightouch"] },
+  { from:"outreach", to:"aborted",   value:2,  companies:["Harvey","Gem"] },
+  // Cold
+  { from:"cold",     to:"immediate", value:9,  companies:["OpenAI","Snowflake","Databricks","Altruist","Plaid","Sentry","Cursor","Whop","Watershed"] },
+  { from:"cold",     to:"offer",     value:1,  companies:["Scribe"] },
+];
+
+function buildLayout() {
+  const cols = [0,1].map(c => NODES.filter(n => n.col === c));
+  const pos = {};
+  cols.forEach((nodes, col) => {
+    const total = nodes.reduce((s,n) => s + n.value, 0);
+    const usable = SVG_H - PAD * (nodes.length - 1);
+    let y = 0;
+    nodes.forEach(n => {
+      const h = Math.max((n.value / total) * usable, 6);
+      pos[n.id] = { ...n, x: COL_X[col], y, h };
+      y += h + PAD;
+    });
+  });
+
+  const fromOff = {}, toOff = {};
+  Object.keys(pos).forEach(id => { fromOff[id] = 0; toOff[id] = 0; });
+
+  const flows = FLOWS.filter(f => f.value > 0).map((f, i) => {
+    const src = pos[f.from], tgt = pos[f.to];
+    const sh = (f.value / src.value) * src.h;
+    const th = (f.value / tgt.value) * tgt.h;
+    const x0 = src.x + NODE_W, y0 = src.y + fromOff[f.from];
+    const x1 = tgt.x,          y1 = tgt.y + toOff[f.to];
+    fromOff[f.from] += sh;
+    toOff[f.to]     += th;
+    const cx = (x0 + x1) / 2;
+    const path = `M${x0},${y0} C${cx},${y0} ${cx},${y1} ${x1},${y1} L${x1},${y1+th} C${cx},${y1+th} ${cx},${y0+sh} ${x0},${y0+sh} Z`;
+    return { ...f, path, srcColor: src.color, tgtColor: tgt.color, gradId:`g${i}` };
+  });
+
+  return { pos, flows };
+}
+
+function svgEl(tag, attrs={}) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v));
+  return e;
+}
+
+function svgText(x, y, text, {anchor='start', fill='#fff', size=13, weight=400, mono=false}={}) {
+  const t = svgEl('text', { x, y, 'text-anchor':anchor, fill, 'font-size':size,
+    'font-weight':weight, 'font-family': mono ? "'DM Mono',monospace" : "'DM Sans',sans-serif" });
+  t.textContent = text;
+  return t;
+}
+
+let locked = null, allFlowEls = [], allNodeEls = {};
+
+function render() {
+  const { pos, flows } = buildLayout();
+  const svg = document.getElementById('sankey');
+  svg.innerHTML = '';
+  allFlowEls = []; allNodeEls = {};
+
+  // Gradients
+  const defs = svgEl('defs');
+  flows.forEach(f => {
+    const lg = svgEl('linearGradient', { id:f.gradId, x1:'0%', y1:'0%', x2:'100%', y2:'0%' });
+    lg.appendChild(svgEl('stop', { offset:'0%',   'stop-color':f.srcColor, 'stop-opacity':'0.52' }));
+    lg.appendChild(svgEl('stop', { offset:'100%', 'stop-color':f.tgtColor, 'stop-opacity':'0.52' }));
+    defs.appendChild(lg);
+  });
+  svg.appendChild(defs);
+
+  // Flows
+  flows.forEach((f, i) => {
+    const g = svgEl('g');
+    g.appendChild(svgEl('path', { d:f.path, fill:`url(#${f.gradId})`, stroke:'none' }));
+    g.style.cursor = 'pointer';
+    g.addEventListener('mouseenter', e => { if (!locked) { highlight('flow',i,f); showTip(e, flowInfo(f)); } });
+    g.addEventListener('mousemove',  moveTip);
+    g.addEventListener('mouseleave', e => { if (!locked) { clearHL(); hideTip(); } });
+    g.addEventListener('click', e => { e.stopPropagation(); toggleLock('flow',i,f,e,flowInfo(f)); });
+    svg.appendChild(g);
+    allFlowEls.push(g);
+  });
+
+  // Nodes
+  Object.values(pos).forEach(n => {
+    const g = svgEl('g');
+    g.dataset.id = n.id;
+    g.style.cursor = 'pointer';
+    g.appendChild(svgEl('rect', { x:n.x, y:n.y, width:NODE_W, height:n.h, fill:n.color, rx:5 }));
+
+    if (n.col === 0) {
+      g.appendChild(svgText(n.x-14, n.y+n.h/2-8,  n.label,               {anchor:'end',   fill:n.color,   size:14, weight:700}));
+      g.appendChild(svgText(n.x-14, n.y+n.h/2+11, `${n.value} companies`, {anchor:'end',   fill:'#7a82b0', size:12, mono:true}));
+    } else {
+      const special = n.id === 'offer' || n.id === 'aborted';
+      g.appendChild(svgText(n.x+NODE_W+12, n.y+n.h/2-8,  n.label, {anchor:'start', fill:n.color, size:special?15:14, weight:700}));
+      g.appendChild(svgText(n.x+NODE_W+12, n.y+n.h/2+11, `${n.value} · ${Math.round(n.value/TOTAL*100)}%`, {anchor:'start', fill:'#7a82b0', size:12, mono:true}));
+    }
+
+    g.addEventListener('mouseenter', e => { if (!locked) { highlight('node',null,null,n.id); showTip(e, nodeInfo(n, flows)); } });
+    g.addEventListener('mousemove',  moveTip);
+    g.addEventListener('mouseleave', e => { if (!locked) { clearHL(); hideTip(); } });
+    g.addEventListener('click', e => { e.stopPropagation(); toggleLock('node',null,null,e,nodeInfo(n,flows),n.id); });
+    svg.appendChild(g);
+    allNodeEls[n.id] = g;
+    window._flows = flows;
+  });
+}
+
+function highlight(type, fi, flow, nid) {
+  const af = new Set(), an = new Set();
+  if (type === 'flow') {
+    af.add(fi); an.add(flow.from); an.add(flow.to);
+  } else {
+    an.add(nid);
+    window._flows.forEach((f,i) => { if (f.from===nid||f.to===nid) { af.add(i); an.add(f.from); an.add(f.to); } });
+  }
+  allFlowEls.forEach((g,i) => g.style.opacity = af.has(i) ? '1' : '0.05');
+  Object.entries(allNodeEls).forEach(([id,g]) => g.style.opacity = an.has(id) ? '1' : '0.15');
+}
+
+function clearHL() {
+  allFlowEls.forEach(g => g.style.opacity = '1');
+  Object.values(allNodeEls).forEach(g => g.style.opacity = '1');
+}
+
+function toggleLock(type, fi, flow, e, info, nid) {
+  const key = type==='flow' ? `f${fi}` : `n${nid}`;
+  if (locked===key) { locked=null; clearHL(); hideTip(); }
+  else { locked=key; highlight(type,fi,flow,nid); showTip(e,info); }
+}
+
+document.addEventListener('click', () => { if (locked) { locked=null; clearHL(); hideTip(); } });
+
+function nodeInfo(n, flows) {
+  const cos = [];
+  flows.forEach(f => { if ((f.from===n.id||f.to===n.id)&&f.companies.length) f.companies.forEach(c => { if(!cos.includes(c)) cos.push(c); }); });
+  return { label:n.label, value:n.value, color:n.color, companies:cos };
+}
+function flowInfo(f) {
+  const s = NODES.find(x=>x.id===f.from), t = NODES.find(x=>x.id===f.to);
+  return { label:`${s.label} → ${t.label}`, value:f.value, color:t.color, companies:f.companies };
+}
+
+function showTip(e, info) {
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = `
+    <div class="tip-title" style="color:${info.color}">${info.label}</div>
+    <div class="tip-count">${info.value} ${info.value===1?'company':'companies'}</div>
+    ${info.companies.length ? `<div class="tip-companies">${info.companies.map(c=>`<span class="chip">${c}</span>`).join('')}</div>` : ''}
+  `;
+  tip.classList.add('visible');
+  moveTip(e);
+}
+function hideTip() { document.getElementById('tooltip').classList.remove('visible'); }
+function moveTip(e) {
+  const tip = document.getElementById('tooltip');
+  tip.style.left = Math.min(e.clientX+14, window.innerWidth-tip.offsetWidth-10)+'px';
+  tip.style.top  = (e.clientY-10)+'px';
+}
+
+function downloadSVG() {
+  const svg = document.getElementById('sankey');
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.setAttribute('style','background:#0d1117');
+  clone.insertAdjacentHTML('afterbegin',`<rect width="${SVG_W}" height="${SVG_H}" fill="#0d1117"/>`);
+  clone.insertAdjacentHTML('beforeend',`
+    <text x="${SVG_W/2}" y="-42" text-anchor="middle" fill="#4a5080" font-size="11" font-family="sans-serif" font-weight="700" letter-spacing="2">JOB SEARCH · JUL 2025 – MAR 2026</text>
+    <text x="${SVG_W/2}" y="-18" text-anchor="middle" fill="#e0e4f8" font-size="22" font-family="sans-serif" font-weight="800">50 Companies · How Far Did Each Channel Go?</text>
+    <text x="${SVG_W/2}" y="${SVG_H+30}" text-anchor="middle" fill="#f0c040" font-size="13" font-family="sans-serif" font-weight="600">🎉 Offer accepted at Scribe!</text>
+  `);
+  const blob = new Blob([clone.outerHTML],{type:'image/svg+xml'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'job_search_sankey.svg';
+  a.click();
+}
+
+render();
+</script>
+</body>
+</html>
